@@ -22,5 +22,6 @@ After this is done you now have the LLM loaded on your system with the API avail
 2. Move the yaml files located in the ‘data’ folder to the ‘characters’ folder of text-generation-webui
 3. On your command line navigate to the folder where the agent program is installed, then run “pip install -r requirements.txt”. It is highly recommended to use a virtual environment via anaconda.
 4. Ensure the API is running and capable of receiving input.
-5.Run FinalAgent.py via Visual Studio Code. 
-	After this you will now have the ability to run the agent as the researcher did during the course of developing it.
+5. Run FinalAgent.py via Visual Studio Code.
+
+After this you will now have the ability to run the agent as the researcher did during the course of developing it.
