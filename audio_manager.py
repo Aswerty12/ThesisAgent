@@ -4,12 +4,19 @@ import sounddevice as sd
 import soundfile as sf
 import asyncio
 import os
+import tempfile  # Import tempfile
+
+
 class AudioManager:
     def __init__(self, config):
         self.config = config
 
     async def record_audio(self, duration=10):
-        file_name = "recorded_audio.wav"
+        # file_name = "recorded_audio.wav"
+        # Use a temporary file
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_file:
+            file_name = temp_file.name  # Get the name of the temporary file
+
         try:
             process = (
                 ffmpeg.input('audio=Microphone (Realtek(R) Audio)', format='dshow')
@@ -27,17 +34,15 @@ class AudioManager:
             print(f"An error occurred during recording: {e}")
             return None
 
-    async def play_audio(self, sound_name, blocking=True):
+    async def play_audio(self, sound_name, blocking=False):  # Changed default to False
         try:
             sound_path = os.path.join(os.getcwd(), self.config.asset_dir, sound_name)
             data, fs = sf.read(sound_path)
+            sd.play(data, fs)
             if blocking:
-                sd.play(data, fs)
                 sd.wait()
-            else:
-                sd.play(data, fs)
         except FileNotFoundError:
             print(f"Error: Sound file not found at {sound_path}")
         except Exception as e:
-          print(f"Error playing sound file {e}")
+            print(f"Error playing sound file {e}")
 

@@ -1,12 +1,14 @@
 # chat_manager.py
 import re
 import random
-from utils import async_SpeakandSend, set_image
+from utils import async_Speak, async_Send, set_image
 from audio_manager import AudioManager
 from llm_manager import LLMManager
 from model_manager import ModelManager
 from config import Config
 import requests
+import asyncio
+
 class ChatManager:
     def __init__(self, config, data_queue, audio_manager, llm_manager, model_manager):
         self.config = config
@@ -19,7 +21,9 @@ class ChatManager:
         chatTitle = "Just Chatting"
         exit_pattern = re.compile(r'(exit|quit)\b', re.IGNORECASE)
         messageToSay = "Just ask any question, and I can answer it."
-        await async_SpeakandSend(messageToSay, self.config.imagelist[1], chatTitle, self.data_queue, self.audio_manager, self.model_manager)
+        audio = self.model_manager.generate_speech(messageToSay)
+        await async_Speak(audio, self.model_manager.config.tts_sample_rate)
+        await async_Send(self.config.imagelist[1], messageToSay, chatTitle, self.data_queue)
 
         while True:
             user_message_file = await self.audio_manager.record_audio(duration=7)
@@ -39,11 +43,12 @@ class ChatManager:
                 "messages": self.llm_manager.history
             }
 
-            await self.audio_manager.play_audio(random.choice(self.config.fillersounds), blocking=False)
+            await self.audio_manager.play_audio(random.choice(self.config.fillersounds))
             response = requests.post(self.config.llm_url, headers=self.config.llm_headers, json=data, verify=False)
             assistant_message = response.json()['choices'][0]['message']['content']
             self.llm_manager.history.append({"role": "assistant", "content": assistant_message})
             selectedimage = set_image(self.config)
             print(assistant_message)
-            success = await async_SpeakandSend(assistant_message, selectedimage, chatTitle, self.data_queue, self.audio_manager, self.model_manager)
-
+            audio = self.model_manager.generate_speech(assistant_message)
+            await async_Speak(audio, self.model_manager.config.tts_sample_rate)
+            await async_Send(selectedimage, assistant_message, chatTitle, self.data_queue)

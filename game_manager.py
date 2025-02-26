@@ -1,12 +1,13 @@
 # game_manager.py
 import re
-from utils import async_SpeakandSend, set_image
+from utils import async_Speak, async_Send, set_image
 from audio_manager import AudioManager
 from llm_manager import LLMManager
 from model_manager import ModelManager
 from config import Config
 import requests
 import random
+import asyncio
 
 class GameManager:
     def __init__(self, config, data_queue, audio_manager, llm_manager, model_manager):
@@ -30,16 +31,17 @@ class GameManager:
         fullHint = "I'm thinking of a thing. Your goal is to guess it. Here's your first hint: What I'm thinking of is " + intro_Hint
         self.llm_manager.history.append({"role": "assistant", "content": fullHint})
         self.history.append({"role": "assistant", "content": fullHint})
-
-        await async_SpeakandSend(fullHint, self.config.imagelist[1], gameTitle, self.data_queue, self.audio_manager, self.model_manager)
+        audio = self.model_manager.generate_speech(fullHint)
+        asyncio.create_task(async_Speak(audio, self.model_manager.config.tts_sample_rate))
+        await async_Send(self.config.imagelist[1], fullHint, gameTitle, self.data_queue)
         return await self.guessing_loop(exitword,character,gameTitle)
 
     async def game_introduction(self, intro, pattern):
         while True:
-            self.data_queue.put((self.config.imagelist[1], intro, "Gameplay Introduction"))
+            await async_Send(self.config.imagelist[1], intro, "Gameplay Introduction", self.data_queue)
             print(intro)
             await self.audio_manager.play_audio('gameintro.mp3')  # prerecorded for response time
-            self.data_queue.put((self.config.idleimage, intro, "Gameplay Introduction"))
+            await async_Send(self.config.idleimage, intro, "Gameplay Introduction", self.data_queue)
             user_message_file = await self.audio_manager.record_audio(duration=5)  # Recording for 5 seconds
             transcribed_text = self.model_manager.transcribe_audio(user_message_file)
             if pattern.search(transcribed_text):
@@ -89,21 +91,29 @@ class GameManager:
           self.llm_manager.history.append({"role": "assistant", "content": assistant_message})
           selectedimage = set_image(self.config)
           print(assistant_message)
-          success = await async_SpeakandSend(assistant_message,selectedimage, gameTitle, self.data_queue,self.audio_manager,self.model_manager)
+          audio = self.model_manager.generate_speech(assistant_message)
+          asyncio.create_task(async_Speak(audio, self.model_manager.config.tts_sample_rate))
+          await async_Send(selectedimage, assistant_message, gameTitle, self.data_queue)
 
     async def final_guess(self, toGuess):
         wordToGuess = re.compile(r'({})'.format(toGuess), re.IGNORECASE)
         selectedimage = set_image(self.config)
         finalSay = "Hmm. It seems like you're close enough to what I'm thinking of that I can't give anymore hints or answer anymore questions. Here's your last chance. What word was I thinking?"
-        await async_SpeakandSend(finalSay,selectedimage, "Final Guess",self.data_queue,self.audio_manager,self.model_manager)
+        audio = self.model_manager.generate_speech(finalSay)
+        asyncio.create_task(async_Speak(audio, self.model_manager.config.tts_sample_rate))
+        await async_Send(selectedimage, finalSay, "Final Guess", self.data_queue)
         user_message_file = await self.audio_manager.record_audio(duration=8)
         user_message = self.model_manager.transcribe_audio(user_message_file)
         
         if wordToGuess.search(user_message):
             userwins = "I think I heard you say {}, that's the word I was thinking of congratulations!".format(toGuess)
-            await async_SpeakandSend(userwins,selectedimage,"WINNING GUESS",self.data_queue,self.audio_manager,self.model_manager)
+            audio = self.model_manager.generate_speech(userwins)
+            asyncio.create_task(async_Speak(audio, self.model_manager.config.tts_sample_rate))
+            await async_Send(selectedimage, userwins, "WINNING GUESS", self.data_queue)
             return "WIN"
         else:
             userwrong = "I'm sorry. That is not the word that I was thinking of. The right answer was {}".format(toGuess)
-            await async_SpeakandSend(userwrong,selectedimage,"WRONG GUESS",self.data_queue,self.audio_manager,self.model_manager)
+            audio = self.model_manager.generate_speech(userwrong)
+            asyncio.create_task(async_Speak(audio, self.model_manager.config.tts_sample_rate))
+            await async_Send(selectedimage, userwrong, "WRONG GUESS", self.data_queue)
             return "QUIT"

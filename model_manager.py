@@ -17,16 +17,23 @@ class ModelManager:
 
     def load_tts_model(self):
         print("Loading TTS model")
-        model, example_text = torch.hub.load(repo_or_dir='snakers4/silero-models',
-                                             model='silero_tts',
-                                             language=self.config.tts_language,
-                                             speaker=self.config.tts_model_id,
-                                             force_reload=False,
-                                             trust_repo=True,
-                                             source='local')
-        model.to(self.config.tts_device)
-        print("TTS Model loaded successfully.")
-        return model
+        try:
+            model, example_text = torch.hub.load(
+                repo_or_dir="snakers4/silero-models",
+                model="silero_tts",
+                language=self.config.tts_language,
+                speaker=self.config.tts_model_id,
+                force_reload=False,
+                trust_repo=True,
+                source="github", # Changed source to github
+            )
+            model.to(self.config.tts_device)
+            print("TTS Model loaded successfully.")
+            return model
+        except Exception as e:
+            print(f"Error loading TTS model: {e}")
+            raise
+
 
     def transcribe_audio(self, file_name):
         try:
@@ -53,4 +60,3 @@ class ModelManager:
         except Exception as e:
           print(f"Error occured when generating speech {e}")
           return None
-

@@ -1,22 +1,32 @@
-# gui_manager.py
+# gui_manager.py - Modified
 import tkinter as tk
 from PIL import Image, ImageTk, ImageSequence
 import threading
 import queue
 import time
 import os
+import asyncio
 
 class GUIManager:
     def __init__(self, config, data_queue):
         self.config = config
         self.data_queue = data_queue
-        self.root = tk.Tk()
-        self.root.title("Alex the AI")
+        self.root = None
         self.window_width = 800
         self.window_height = 700
-        self.root.geometry(f"{self.window_width}x{self.window_height}")
         self.stop_update = False
-
+        self.title_label = None
+        self.image_label = None
+        self.text_label = None
+        self.splashPhoto = None
+        self.frame_id = None
+        
+    def setup(self):
+        """Setup the GUI elements but don't start mainloop"""
+        self.root = tk.Tk()
+        self.root.title("Alex the AI")
+        self.root.geometry(f"{self.window_width}x{self.window_height}")
+        
         self.title_label = tk.Label(self.root, text="Alex the AI Agent", font=("Helvetica", 16, "bold"))
         self.title_label.pack(pady=10)
 
@@ -29,42 +39,46 @@ class GUIManager:
         self.text_label = tk.Label(self.root, text="For: Development of Computer Agent for Child-Robot Symbolic Anthropomorphism", wraplength=750)
         self.text_label.pack()
         
-        self.frame_id = None
-        
-        self.update_thread = threading.Thread(target=self.update_labels)
-        self.update_thread.daemon = True
-        self.update_thread.start()
+        # Don't schedule update here - will be done in update_gui async function
 
+    async def update_gui(self):
+        """Asynchronous function to update the GUI"""
+        while not self.stop_update:
+            # Process all messages in the queue
+            try:
+                while True:
+                    image_name, text, title = self.data_queue.get_nowait()
+                    if image_name.lower().endswith('.gif'):
+                        self.clear_gif()
+                    else:
+                        self.clear_image()
+                    image_path = self.get_image(image_name)
+                    self.display_image(image_path)
+                    self.title_label.config(text=title)
+                    self.text_label.config(text=text)
+                    self.text_label.config(wraplength=700)
+            except queue.Empty:
+                pass  # No messages, continue
+            except Exception as e:
+                print(f"Error in updating labels {e}")
+            
+            # Update tkinter - this is the key to make it work with asyncio
+            self.root.update()
+            # Small delay to prevent hogging the CPU
+            await asyncio.sleep(0.1)
+            
     def start(self):
-      self.root.mainloop()
+        """Setup the GUI - this doesn't block"""
+        self.setup()
 
     def stop(self):
-      self.stop_update = True
-      self.root.destroy()
-    
-    def update_labels(self):
-      while not self.stop_update:
-        try:
-          image_name, text, title = self.data_queue.get(timeout=1)
-          if image_name.lower().endswith('.gif'):
-            self.clear_gif()
-          else:
-            self.clear_image()
-          image_path = self.get_image(image_name)
-          self.display_image(image_path)
-          self.title_label.config(text=title)
-          self.text_label.config(text=text)
-          self.text_label.config(wraplength=700)
-          self.root.update_idletasks()
-          time.sleep(2)
-          self.root.update_idletasks()
-        except queue.Empty:
-          pass
-      self.root.destroy()
+        self.stop_update = True
+        if self.root:
+            self.root.destroy()
 
     def clear_image(self):
-      self.image_label.config(image="")
-      self.image_label.image = None
+        self.image_label.config(image="")
+        self.image_label.image = None
 
     def display_image(self, image_path):
         if image_path.lower().endswith('.gif'):
@@ -105,9 +119,9 @@ class GUIManager:
         self.clear_image()
     
     def get_image(self, file_name):
-      try:
-          image_path = os.path.join(os.getcwd(), self.config.asset_dir, file_name)
-          return image_path
-      except FileNotFoundError:
-          print("Error: Image file not found at the specified path.")
-          return None
+        try:
+            image_path = os.path.join(os.getcwd(), self.config.asset_dir, file_name)
+            return image_path
+        except FileNotFoundError:
+            print("Error: Image file not found at the specified path.")
+            return None
